@@ -1,12 +1,6 @@
-"""企业相关接口。
-
-当前提供两个基础能力：
-1. 新增企业记录
-2. 查询企业列表，并支持按分类筛选
-"""
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from backend import models, schemas
 from backend.database import get_db
@@ -16,25 +10,92 @@ router = APIRouter(prefix="/enterprises", tags=["enterprises"])
 
 @router.post("/", response_model=schemas.EnterpriseResponse)
 def create_enterprise(enterprise: schemas.EnterpriseCreate, db: Session = Depends(get_db)):
-    """创建一条新的企业记录。"""
     db_enterprise = models.Enterprise(**enterprise.model_dump())
     db.add(db_enterprise)
     db.commit()
-    # 刷新对象，确保能够拿到数据库生成的最新值，例如主键 id。
     db.refresh(db_enterprise)
     return db_enterprise
 
 
-@router.get("/", response_model=list[schemas.EnterpriseResponse])
+@router.get("/")
 def list_enterprises(
     category: str | None = Query(default=None, description="按分类筛选"),
+    town: str | None = Query(default=None, description="按镇街筛选"),
+    keyword: str | None = Query(default=None, description="按企业名称搜索"),
+    page: int = Query(default=1, ge=1, description="页码"),
+    page_size: int = Query(default=10, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db)
 ):
-    """查询企业列表。
-
-    如果提供了 category 参数，则只返回对应分类下的企业。
-    """
     query = db.query(models.Enterprise)
+
     if category:
         query = query.filter(models.Enterprise.category == category)
-    return query.all()
+
+    if town:
+        query = query.filter(models.Enterprise.town == town)
+
+    if keyword:
+        query = query.filter(models.Enterprise.name.contains(keyword))
+
+    total = query.count()
+
+    items = (
+        query.order_by(desc(models.Enterprise.id))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "town": item.town,
+                "category": item.category,
+                "category_reason": item.category_reason,
+                "products": item.products,
+                "source_url": item.source_url,
+                "evidence": item.evidence,
+                "confidence": item.confidence,
+                "reviewed": item.reviewed,
+            }
+            for item in items
+        ],
+    }
+
+@router.get("/stats")
+def get_enterprise_stats(db: Session = Depends(get_db)):
+    total = db.query(models.Enterprise).count()
+
+    service = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据服务类"
+    ).count()
+
+    tech = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据技术类"
+    ).count()
+
+    security = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据安全类"
+    ).count()
+
+    infrastructure = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据基础设施类"
+    ).count()
+
+    other = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "其他数据相关类"
+    ).count()
+
+    return {
+        "total": total,
+        "service": service,
+        "tech": tech,
+        "security": security,
+        "infrastructure": infrastructure,
+        "other": other,
+    }
