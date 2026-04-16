@@ -1,5 +1,20 @@
+import {
+  Card,
+  Col,
+  Empty,
+  Input,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from "antd";
 import { useEffect, useState } from "react";
-import { Card, Select, Table, Typography, Space, Tag, message } from "antd";
+
+import ReactECharts from "echarts-for-react";
 
 const { Title, Paragraph } = Typography;
 
@@ -10,23 +25,69 @@ const categoryOptions = [
   { label: "数据服务类", value: "数据服务类" },
   { label: "数据安全类", value: "数据安全类" },
   { label: "数据基础设施类", value: "数据基础设施类" },
-  { label: "其他数据相关类", value: "其他数据相关类" }
+  { label: "其他数据相关类", value: "其他数据相关类" },
+];
+
+const townOptions = [
+  { label: "全部", value: "全部" },
+  { label: "桂城街道", value: "桂城街道" },
+  { label: "狮山镇", value: "狮山镇" },
+  { label: "大沥镇", value: "大沥镇" },
+  { label: "里水镇", value: "里水镇" },
+  { label: "丹灶镇", value: "丹灶镇" },
+  { label: "西樵镇", value: "西樵镇" },
+  { label: "九江镇", value: "九江镇" },
 ];
 
 function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
+  const [selectedTown, setSelectedTown] = useState("全部");
+  const [keyword, setKeyword] = useState("");
   const [tableData, setTableData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    service: 0,
+    tech: 0,
+    security: 0,
+    infrastructure: 0,
+    other: 0,
+  });
 
-  const fetchEnterprises = async (category) => {
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 5,
+    total: 0,
+  });
+
+  const fetchEnterprises = async ({
+    category = selectedCategory,
+    town = selectedTown,
+    page = pagination.current,
+    pageSize = pagination.pageSize,
+    keywordValue = keyword,
+  } = {}) => {
     try {
       setLoading(true);
 
-      let url = "http://127.0.0.1:8000/enterprises/";
+      const params = new URLSearchParams();
+
       if (category && category !== "全部") {
-        url += `?category=${encodeURIComponent(category)}`;
+        params.append("category", category);
       }
 
+      if (town && town !== "全部") {
+        params.append("town", town);
+      }
+
+      if (keywordValue && keywordValue.trim()) {
+        params.append("keyword", keywordValue.trim());
+      }
+
+      params.append("page", String(page));
+      params.append("page_size", String(pageSize));
+
+      const url = `http://127.0.0.1:8000/enterprises/?${params.toString()}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -35,15 +96,25 @@ function App() {
 
       const data = await response.json();
 
-      const formattedData = data.map((item) => ({
+      const items = Array.isArray(data.items) ? data.items : [];
+
+      const formattedData = items.map((item) => ({
         key: item.id,
-        name: item.name,
-        town: item.town,
-        category: item.category,
-        products: item.products
+        id: item.id,
+        name: item.name || "",
+        town: item.town || "",
+        category: item.category || "",
+        products: item.products || "",
       }));
 
       setTableData(formattedData);
+
+      setPagination((prev) => ({
+        ...prev,
+        current: data.page || 1,
+        pageSize: data.page_size || 5,
+        total: data.total || 0,
+      }));
     } catch (error) {
       console.error(error);
       message.error("加载企业数据失败，请检查后端是否启动");
@@ -52,33 +123,115 @@ function App() {
     }
   };
 
+const fetchStats = async () => {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/enterprises/stats");
+
+    if (!response.ok) {
+      throw new Error("获取统计数据失败");
+    }
+
+    const data = await response.json();
+    setStats(data);
+  } catch (error) {
+    console.error(error);
+    message.error("加载统计数据失败");
+  }
+};
+
   useEffect(() => {
-    fetchEnterprises(selectedCategory);
-  }, [selectedCategory]);
+    fetchEnterprises({
+      category: selectedCategory,
+      town: selectedTown,
+      page: 1,
+      pageSize: pagination.pageSize,
+      keywordValue: keyword,
+    });
+    fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, selectedTown]);
 
   const columns = [
     {
       title: "企业名称",
       dataIndex: "name",
-      key: "name"
+      key: "name",
     },
     {
       title: "镇街",
       dataIndex: "town",
-      key: "town"
+      key: "town",
     },
     {
       title: "分类",
       dataIndex: "category",
       key: "category",
-      render: (value) => <Tag>{value}</Tag>
+      render: (value) => <Tag>{value}</Tag>,
     },
     {
       title: "主营产品",
       dataIndex: "products",
-      key: "products"
-    }
+      key: "products",
+    },
   ];
+
+  const totalCount = stats.total;
+  const serviceCount = stats.service;
+  const techCount = stats.tech;
+
+  const handleTableChange = (newPagination) => {
+    fetchEnterprises({
+      category: selectedCategory,
+      town: selectedTown,
+      page: newPagination.current,
+      pageSize: newPagination.pageSize,
+      keywordValue: keyword,
+    });
+  };
+
+  const handleSearch = () => {
+    fetchEnterprises({
+      category: selectedCategory,
+      town: selectedTown,
+      page: 1,
+      pageSize: pagination.pageSize,
+      keywordValue: keyword,
+    });
+  };
+
+  const chartOption = {
+    title: {
+    text: "企业分类分布",
+    left: "center",
+    },
+    tooltip: {},
+    xAxis: {
+      type: "category",
+      data: [
+        "数据服务类",
+        "数据技术类",
+        "数据安全类",
+        "数据基础设施类",
+        "其他数据相关类",
+      ],
+    },
+    yAxis: {
+      type: "value",
+    },
+    series: [
+      {
+      data: [
+        stats.service,
+        stats.tech,
+        stats.security,
+        stats.infrastructure,
+        stats.other
+
+      ],
+      type: "bar",
+      },
+    ]
+  };
 
   return (
     <div style={{ padding: 24, background: "#f5f5f5", minHeight: "100vh" }}>
@@ -89,25 +242,81 @@ function App() {
               南海区数据产业企业图谱
             </Title>
             <Paragraph style={{ marginBottom: 0 }}>
-              展示后端真实企业数据，支持按分类筛选。
+              展示后端真实企业数据，支持按分类、镇街筛选，支持关键词搜索和分页。
             </Paragraph>
           </div>
 
-          <div style={{ maxWidth: 260 }}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>按分类筛选</div>
-            <Select
-              style={{ width: "100%" }}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              options={categoryOptions}
-            />
-          </div>
+          <Card style={{ marginTop: 20 }}>
+            <ReactECharts option={chartOption} style={{ height: 350 }} />
+          </Card>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Card>
+                <Statistic title="企业总数" value={totalCount} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic title="数据服务类数量" value={serviceCount} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic title="数据技术类数量" value={techCount} />
+              </Card>
+            </Col>
+          </Row>
+
+          <Space wrap size="middle">
+            <div style={{ width: 220 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>按分类筛选</div>
+              <Select
+                style={{ width: "100%" }}
+                value={selectedCategory}
+                onChange={(value) => setSelectedCategory(value)}
+                options={categoryOptions}
+              />
+            </div>
+
+            <div style={{ width: 220 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>按镇街筛选</div>
+              <Select
+                style={{ width: "100%" }}
+                value={selectedTown}
+                onChange={(value) => setSelectedTown(value)}
+                options={townOptions}
+              />
+            </div>
+
+            <div style={{ width: 260 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>按企业名称搜索</div>
+              <Input.Search
+                placeholder="输入企业名称关键词"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onSearch={handleSearch}
+                allowClear
+              />
+            </div>
+          </Space>
 
           <Table
             columns={columns}
             dataSource={tableData}
             loading={loading}
-            pagination={{ pageSize: 5 }}
+            locale={{
+              emptyText: <Empty description="暂无符合条件的企业数据" />,
+            }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: pagination.total,
+              showSizeChanger: true,
+              pageSizeOptions: ["5", "10", "20"],
+              showTotal: (total) => `共 ${total} 条`,
+            }}
+            onChange={handleTableChange}
           />
         </Space>
       </Card>
