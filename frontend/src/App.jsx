@@ -1,5 +1,18 @@
-import { Card, Input, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
+import {
+  Card,
+  Select,
+  Table,
+  Typography,
+  Space,
+  Tag,
+  message,
+  Input,
+  Row,
+  Col,
+  Statistic,
+  Empty,
+} from "antd";
 
 const { Title, Paragraph } = Typography;
 
@@ -10,7 +23,7 @@ const categoryOptions = [
   { label: "数据服务类", value: "数据服务类" },
   { label: "数据安全类", value: "数据安全类" },
   { label: "数据基础设施类", value: "数据基础设施类" },
-  { label: "其他数据相关类", value: "其他数据相关类" }
+  { label: "其他数据相关类", value: "其他数据相关类" },
 ];
 
 const townOptions = [
@@ -21,7 +34,7 @@ const townOptions = [
   { label: "里水镇", value: "里水镇" },
   { label: "丹灶镇", value: "丹灶镇" },
   { label: "西樵镇", value: "西樵镇" },
-  { label: "九江镇", value: "九江镇" }
+  { label: "九江镇", value: "九江镇" },
 ];
 
 function App() {
@@ -34,7 +47,7 @@ function App() {
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 5,
-    total: 0
+    total: 0,
   });
 
   const fetchEnterprises = async ({
@@ -42,7 +55,7 @@ function App() {
     town = selectedTown,
     page = pagination.current,
     pageSize = pagination.pageSize,
-    keywordValue = keyword
+    keywordValue = keyword,
   } = {}) => {
     try {
       setLoading(true);
@@ -61,8 +74,8 @@ function App() {
         params.append("keyword", keywordValue.trim());
       }
 
-      params.append("page", page);
-      params.append("page_size", pageSize);
+      params.append("page", String(page));
+      params.append("page_size", String(pageSize));
 
       const url = `http://127.0.0.1:8000/enterprises/?${params.toString()}`;
       const response = await fetch(url);
@@ -73,22 +86,24 @@ function App() {
 
       const data = await response.json();
 
-      const formattedData = (data.items || []).map((item) => ({
+      const items = Array.isArray(data.items) ? data.items : [];
+
+      const formattedData = items.map((item) => ({
         key: item.id,
         id: item.id,
-        name: item.name,
-        town: item.town,
-        category: item.category,
-        products: item.products
+        name: item.name || "",
+        town: item.town || "",
+        category: item.category || "",
+        products: item.products || "",
       }));
 
       setTableData(formattedData);
 
       setPagination((prev) => ({
         ...prev,
-        current: data.page,
-        pageSize: data.page_size,
-        total: data.total
+        current: data.page || 1,
+        pageSize: data.page_size || 5,
+        total: data.total || 0,
       }));
     } catch (error) {
       console.error(error);
@@ -104,7 +119,7 @@ function App() {
       town: selectedTown,
       page: 1,
       pageSize: pagination.pageSize,
-      keywordValue: keyword
+      keywordValue: keyword,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, selectedTown]);
@@ -113,25 +128,33 @@ function App() {
     {
       title: "企业名称",
       dataIndex: "name",
-      key: "name"
+      key: "name",
     },
     {
       title: "镇街",
       dataIndex: "town",
-      key: "town"
+      key: "town",
     },
     {
       title: "分类",
       dataIndex: "category",
       key: "category",
-      render: (value) => <Tag>{value}</Tag>
+      render: (value) => <Tag>{value}</Tag>,
     },
     {
       title: "主营产品",
       dataIndex: "products",
-      key: "products"
-    }
+      key: "products",
+    },
   ];
+
+  const totalCount = pagination.total;
+  const serviceCount = tableData.filter(
+    (item) => item.category === "数据服务类"
+  ).length;
+  const techCount = tableData.filter(
+    (item) => item.category === "数据技术类"
+  ).length;
 
   const handleTableChange = (newPagination) => {
     fetchEnterprises({
@@ -139,7 +162,7 @@ function App() {
       town: selectedTown,
       page: newPagination.current,
       pageSize: newPagination.pageSize,
-      keywordValue: keyword
+      keywordValue: keyword,
     });
   };
 
@@ -149,7 +172,7 @@ function App() {
       town: selectedTown,
       page: 1,
       pageSize: pagination.pageSize,
-      keywordValue: keyword
+      keywordValue: keyword,
     });
   };
 
@@ -165,6 +188,24 @@ function App() {
               展示后端真实企业数据，支持按分类、镇街筛选，支持关键词搜索和分页。
             </Paragraph>
           </div>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Card>
+                <Statistic title="企业总数" value={totalCount} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic title="当前页数据服务类数量" value={serviceCount} />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic title="当前页数据技术类数量" value={techCount} />
+              </Card>
+            </Col>
+          </Row>
 
           <Space wrap size="middle">
             <div style={{ width: 220 }}>
@@ -203,13 +244,16 @@ function App() {
             columns={columns}
             dataSource={tableData}
             loading={loading}
+            locale={{
+              emptyText: <Empty description="暂无符合条件的企业数据" />,
+            }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
               total: pagination.total,
               showSizeChanger: true,
               pageSizeOptions: ["5", "10", "20"],
-              showTotal: (total) => `共 ${total} 条`
+              showTotal: (total) => `共 ${total} 条`,
             }}
             onChange={handleTableChange}
           />
