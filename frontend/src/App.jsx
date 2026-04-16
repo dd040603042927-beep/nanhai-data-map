@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
 import {
   Card,
-  Select,
-  Table,
-  Typography,
-  Space,
-  Tag,
-  message,
+  Col,
+  Empty,
   Input,
   Row,
-  Col,
+  Select,
+  Space,
   Statistic,
-  Empty,
+  Table,
+  Tag,
+  Typography,
+  message,
 } from "antd";
+import { useEffect, useState } from "react";
+
+import ReactECharts from "echarts-for-react";
 
 const { Title, Paragraph } = Typography;
 
@@ -43,6 +45,14 @@ function App() {
   const [keyword, setKeyword] = useState("");
   const [tableData, setTableData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    service: 0,
+    tech: 0,
+    security: 0,
+    infrastructure: 0,
+    other: 0,
+  });
 
   const [pagination, setPagination] = useState({
     current: 1,
@@ -113,6 +123,22 @@ function App() {
     }
   };
 
+const fetchStats = async () => {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/enterprises/stats");
+
+    if (!response.ok) {
+      throw new Error("获取统计数据失败");
+    }
+
+    const data = await response.json();
+    setStats(data);
+  } catch (error) {
+    console.error(error);
+    message.error("加载统计数据失败");
+  }
+};
+
   useEffect(() => {
     fetchEnterprises({
       category: selectedCategory,
@@ -121,6 +147,7 @@ function App() {
       pageSize: pagination.pageSize,
       keywordValue: keyword,
     });
+    fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, selectedTown]);
 
@@ -148,13 +175,9 @@ function App() {
     },
   ];
 
-  const totalCount = pagination.total;
-  const serviceCount = tableData.filter(
-    (item) => item.category === "数据服务类"
-  ).length;
-  const techCount = tableData.filter(
-    (item) => item.category === "数据技术类"
-  ).length;
+  const totalCount = stats.total;
+  const serviceCount = stats.service;
+  const techCount = stats.tech;
 
   const handleTableChange = (newPagination) => {
     fetchEnterprises({
@@ -176,6 +199,40 @@ function App() {
     });
   };
 
+  const chartOption = {
+    title: {
+    text: "企业分类分布",
+    left: "center",
+    },
+    tooltip: {},
+    xAxis: {
+      type: "category",
+      data: [
+        "数据服务类",
+        "数据技术类",
+        "数据安全类",
+        "数据基础设施类",
+        "其他数据相关类",
+      ],
+    },
+    yAxis: {
+      type: "value",
+    },
+    series: [
+      {
+      data: [
+        stats.service,
+        stats.tech,
+        stats.security,
+        stats.infrastructure,
+        stats.other
+
+      ],
+      type: "bar",
+      },
+    ]
+  };
+
   return (
     <div style={{ padding: 24, background: "#f5f5f5", minHeight: "100vh" }}>
       <Card style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -189,6 +246,10 @@ function App() {
             </Paragraph>
           </div>
 
+          <Card style={{ marginTop: 20 }}>
+            <ReactECharts option={chartOption} style={{ height: 350 }} />
+          </Card>
+
           <Row gutter={16}>
             <Col span={8}>
               <Card>
@@ -197,12 +258,12 @@ function App() {
             </Col>
             <Col span={8}>
               <Card>
-                <Statistic title="当前页数据服务类数量" value={serviceCount} />
+                <Statistic title="数据服务类数量" value={serviceCount} />
               </Card>
             </Col>
             <Col span={8}>
               <Card>
-                <Statistic title="当前页数据技术类数量" value={techCount} />
+                <Statistic title="数据技术类数量" value={techCount} />
               </Card>
             </Col>
           </Row>

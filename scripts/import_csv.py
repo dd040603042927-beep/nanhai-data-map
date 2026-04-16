@@ -11,7 +11,7 @@ import re
 from backend.database import SessionLocal
 from backend.models import Enterprise
 
-CSV_PATH = Path("data/sample_20.csv")
+CSV_PATH = Path("data/amap_enterprises.csv")
 
 
 def safe_str(row, key):
