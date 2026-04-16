@@ -1,5 +1,5 @@
+import { Card, Input, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
-import { Card, Select, Table, Typography, Space, Tag, message } from "antd";
 
 const { Title, Paragraph } = Typography;
 
@@ -13,20 +13,58 @@ const categoryOptions = [
   { label: "其他数据相关类", value: "其他数据相关类" }
 ];
 
+const townOptions = [
+  { label: "全部", value: "全部" },
+  { label: "桂城街道", value: "桂城街道" },
+  { label: "狮山镇", value: "狮山镇" },
+  { label: "大沥镇", value: "大沥镇" },
+  { label: "里水镇", value: "里水镇" },
+  { label: "丹灶镇", value: "丹灶镇" },
+  { label: "西樵镇", value: "西樵镇" },
+  { label: "九江镇", value: "九江镇" }
+];
+
 function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
+  const [selectedTown, setSelectedTown] = useState("全部");
+  const [keyword, setKeyword] = useState("");
   const [tableData, setTableData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchEnterprises = async (category) => {
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 5,
+    total: 0
+  });
+
+  const fetchEnterprises = async ({
+    category = selectedCategory,
+    town = selectedTown,
+    page = pagination.current,
+    pageSize = pagination.pageSize,
+    keywordValue = keyword
+  } = {}) => {
     try {
       setLoading(true);
 
-      let url = "http://127.0.0.1:8000/enterprises/";
+      const params = new URLSearchParams();
+
       if (category && category !== "全部") {
-        url += `?category=${encodeURIComponent(category)}`;
+        params.append("category", category);
       }
 
+      if (town && town !== "全部") {
+        params.append("town", town);
+      }
+
+      if (keywordValue && keywordValue.trim()) {
+        params.append("keyword", keywordValue.trim());
+      }
+
+      params.append("page", page);
+      params.append("page_size", pageSize);
+
+      const url = `http://127.0.0.1:8000/enterprises/?${params.toString()}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -35,8 +73,9 @@ function App() {
 
       const data = await response.json();
 
-      const formattedData = data.map((item) => ({
+      const formattedData = (data.items || []).map((item) => ({
         key: item.id,
+        id: item.id,
         name: item.name,
         town: item.town,
         category: item.category,
@@ -44,6 +83,13 @@ function App() {
       }));
 
       setTableData(formattedData);
+
+      setPagination((prev) => ({
+        ...prev,
+        current: data.page,
+        pageSize: data.page_size,
+        total: data.total
+      }));
     } catch (error) {
       console.error(error);
       message.error("加载企业数据失败，请检查后端是否启动");
@@ -53,8 +99,15 @@ function App() {
   };
 
   useEffect(() => {
-    fetchEnterprises(selectedCategory);
-  }, [selectedCategory]);
+    fetchEnterprises({
+      category: selectedCategory,
+      town: selectedTown,
+      page: 1,
+      pageSize: pagination.pageSize,
+      keywordValue: keyword
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, selectedTown]);
 
   const columns = [
     {
@@ -80,6 +133,26 @@ function App() {
     }
   ];
 
+  const handleTableChange = (newPagination) => {
+    fetchEnterprises({
+      category: selectedCategory,
+      town: selectedTown,
+      page: newPagination.current,
+      pageSize: newPagination.pageSize,
+      keywordValue: keyword
+    });
+  };
+
+  const handleSearch = () => {
+    fetchEnterprises({
+      category: selectedCategory,
+      town: selectedTown,
+      page: 1,
+      pageSize: pagination.pageSize,
+      keywordValue: keyword
+    });
+  };
+
   return (
     <div style={{ padding: 24, background: "#f5f5f5", minHeight: "100vh" }}>
       <Card style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -89,25 +162,56 @@ function App() {
               南海区数据产业企业图谱
             </Title>
             <Paragraph style={{ marginBottom: 0 }}>
-              展示后端真实企业数据，支持按分类筛选。
+              展示后端真实企业数据，支持按分类、镇街筛选，支持关键词搜索和分页。
             </Paragraph>
           </div>
 
-          <div style={{ maxWidth: 260 }}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>按分类筛选</div>
-            <Select
-              style={{ width: "100%" }}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              options={categoryOptions}
-            />
-          </div>
+          <Space wrap size="middle">
+            <div style={{ width: 220 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>按分类筛选</div>
+              <Select
+                style={{ width: "100%" }}
+                value={selectedCategory}
+                onChange={(value) => setSelectedCategory(value)}
+                options={categoryOptions}
+              />
+            </div>
+
+            <div style={{ width: 220 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>按镇街筛选</div>
+              <Select
+                style={{ width: "100%" }}
+                value={selectedTown}
+                onChange={(value) => setSelectedTown(value)}
+                options={townOptions}
+              />
+            </div>
+
+            <div style={{ width: 260 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>按企业名称搜索</div>
+              <Input.Search
+                placeholder="输入企业名称关键词"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onSearch={handleSearch}
+                allowClear
+              />
+            </div>
+          </Space>
 
           <Table
             columns={columns}
             dataSource={tableData}
             loading={loading}
-            pagination={{ pageSize: 5 }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: pagination.total,
+              showSizeChanger: true,
+              pageSizeOptions: ["5", "10", "20"],
+              showTotal: (total) => `共 ${total} 条`
+            }}
+            onChange={handleTableChange}
           />
         </Space>
       </Card>
