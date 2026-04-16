@@ -5,6 +5,8 @@ from backend import models
 from backend.api.enterprise import router as enterprise_router
 from backend.database import engine
 
+from backend.api.agent import router as agent_router
+
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -22,6 +24,8 @@ app.add_middleware(
 )
 
 app.include_router(enterprise_router)
+
+app.include_router(agent_router)
 
 
 @app.get("/")
