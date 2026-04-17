@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from backend import models, schemas
 from backend.database import get_db
@@ -39,7 +40,7 @@ def list_enterprises(
     total = query.count()
 
     items = (
-        query.order_by(models.Enterprise.id.desc())
+        query.order_by(desc(models.Enterprise.id))
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -64,4 +65,37 @@ def list_enterprises(
             }
             for item in items
         ],
+    }
+
+@router.get("/stats")
+def get_enterprise_stats(db: Session = Depends(get_db)):
+    total = db.query(models.Enterprise).count()
+
+    service = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据服务类"
+    ).count()
+
+    tech = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据技术类"
+    ).count()
+
+    security = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据安全类"
+    ).count()
+
+    infrastructure = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "数据基础设施类"
+    ).count()
+
+    other = db.query(models.Enterprise).filter(
+        models.Enterprise.category == "其他数据相关类"
+    ).count()
+
+    return {
+        "total": total,
+        "service": service,
+        "tech": tech,
+        "security": security,
+        "infrastructure": infrastructure,
+        "other": other,
     }
