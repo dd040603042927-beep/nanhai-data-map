@@ -5,19 +5,17 @@ from backend import models
 from backend.api.enterprise import router as enterprise_router
 from backend.database import engine
 
-from backend.api.agent import router as agent_router
-
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Nanhai Data Map API",
-    description="南海区数据产业企业图谱后端服务",
-    version="1.0.0"
+    description="南海区数据产业图谱后端服务",
+    version="2.0.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,9 +23,7 @@ app.add_middleware(
 
 app.include_router(enterprise_router)
 
-app.include_router(agent_router)
-
 
 @app.get("/")
 def root():
-    return {"message": "Nanhai Data Map API is running"}
+    return {"message": "南海区数据产业图谱后端服务运行中"}
