@@ -4,8 +4,30 @@ import time
 from pathlib import Path
 
 import requests
+from web_crawler_utils import build_standard_row, load_sample_reference_rows
 
-AMAP_KEY = os.getenv("AMAP_WEB_KEY", "").strip()
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def load_key_from_env_files() -> str:
+    for env_path in [BASE_DIR / ".env.local", BASE_DIR / ".env"]:
+        if not env_path.exists():
+            continue
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            text = line.strip()
+            if not text or text.startswith("#") or "=" not in text:
+                continue
+            key, value = text.split("=", 1)
+            if key.strip() == "AMAP_WEB_KEY":
+                return value.strip().strip("'\"")
+    return ""
+
+
+def resolve_amap_key() -> str:
+    return os.getenv("AMAP_WEB_KEY", "").strip() or load_key_from_env_files()
+
+
+AMAP_KEY = resolve_amap_key()
 
 # 建议你把这里改成南海区对应的 adcode；官方文档明确建议优先使用 adcode 精确到区县
 # 如果你暂时没填 adcode，也可以先用 city + citylimit 的方式测试
@@ -28,6 +50,37 @@ KEYWORDS = [
 ]
 
 URL = "https://restapi.amap.com/v3/place/text"
+
+
+def parse_instruction_keywords() -> list[str]:
+    instruction = os.getenv("PLATFORM_INSTRUCTION", "").strip()
+    if not instruction:
+        return KEYWORDS
+
+    candidates = []
+    for keyword in KEYWORDS:
+        if keyword in instruction:
+            candidates.append(keyword)
+
+    if "数据服务" in instruction:
+        candidates.append("数据服务")
+    if "数据安全" in instruction:
+        candidates.append("数据安全")
+    if "数据技术" in instruction:
+        candidates.extend(["大数据", "软件开发"])
+    if "数据基础设施" in instruction:
+        candidates.extend(["数据中心", "云平台"])
+
+    if candidates:
+        seen = set()
+        ordered = []
+        for item in candidates:
+            if item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return ordered
+
+    return [instruction]
 
 
 def fetch_poi_by_keyword(keyword: str, max_pages: int = 3, offset: int = 20):
@@ -90,8 +143,10 @@ def guess_category(name: str, type_text: str, keyword: str) -> str:
 def build_rows():
     rows = []
     seen = set()
+    active_keywords = parse_instruction_keywords()
+    sample_reference = load_sample_reference_rows()
 
-    for keyword in KEYWORDS:
+    for keyword in active_keywords:
         pois = fetch_poi_by_keyword(keyword)
 
         for poi in pois:
@@ -109,18 +164,17 @@ def build_rows():
             seen.add(name)
 
             category = guess_category(name, type_text, keyword)
-
-            row = {
-                "企业名称": name,
-                "所在镇街": address if address else "待补充",
-                "主要类型": category,
-                "分类依据": f"高德POI关键词“{keyword}”命中；POI类型：{type_text}",
-                "主营产品": type_text if type_text else "待补充",
-                "数据来源": f"高德POI搜索API，keyword={keyword}",
-                "证据片段": f"名称：{name}；地址：{address}；类型：{type_text}；坐标：{location}",
-                "置信度": "0.70",
-                "是否人工复核": "false",
-            }
+            row = build_standard_row(
+                name=name,
+                town=address if address else "待补充",
+                seed_category=category,
+                seed_product=type_text if type_text else keyword,
+                source_url=f"https://restapi.amap.com/v3/place/text?keywords={keyword}&city={TARGET_CITY}",
+                source_label="高德POI",
+                summary=f"{keyword}；POI类型：{type_text}",
+                evidence=f"名称：{name}；地址：{address}；类型：{type_text}；坐标：{location}",
+                sample_reference=sample_reference,
+            )
             rows.append(row)
 
     return rows
@@ -152,8 +206,10 @@ def save_csv(rows):
 
 def main():
     if not AMAP_KEY:
-        print("缺少环境变量 AMAP_WEB_KEY，请先设置高德 Key")
-        return
+        raise RuntimeError(
+            "缺少高德 Key。请在启动后端的环境变量中设置 AMAP_WEB_KEY，"
+            "或在项目根目录 .env.local / .env 中写入 AMAP_WEB_KEY=你的Key"
+        )
 
     rows = build_rows()
     save_csv(rows)

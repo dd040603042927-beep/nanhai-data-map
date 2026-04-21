@@ -19,3 +19,19 @@ class Enterprise(Base):
     evidence = Column(Text, nullable=True)                          # 证据片段
     confidence = Column(Float, default=0.0)                         # 置信度
     reviewed = Column(Boolean, default=False)                       # 复核标记
+
+    # 增强字段：多源证据、企业画像、关系图谱、LLM 辅助、采集平台
+    data_sources = Column(Text, nullable=True)                      # 多源数据平台列表
+    evidence_summary = Column(Text, nullable=True)                  # 证据摘要
+    source_count = Column(Integer, default=0)                       # 来源数量
+    company_size = Column(String(50), nullable=True)                # 企业规模画像
+    profile_tags = Column(Text, nullable=True)                      # 企业画像标签
+    confidence_level = Column(String(50), nullable=True)            # 可信度等级
+    chain_position = Column(String(50), nullable=True)              # 产业链位置
+    upstream_enterprises = Column(Text, nullable=True)              # 上游企业
+    downstream_enterprises = Column(Text, nullable=True)            # 下游企业
+    related_enterprises = Column(Text, nullable=True)               # 关联企业
+    llm_summary = Column(Text, nullable=True)                       # LLM 摘要
+    llm_label_suggestion = Column(String(100), nullable=True)       # LLM 建议分类
+    llm_provider = Column(String(100), nullable=True)               # LLM 提供方
+    crawler_status = Column(String(50), nullable=True)              # 采集平台状态
