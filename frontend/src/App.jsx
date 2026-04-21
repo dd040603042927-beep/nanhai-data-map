@@ -1,4 +1,6 @@
 import {
+  Alert,
+  Button,
   Card,
   Col,
   Empty,
@@ -12,24 +14,23 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import "./App.css";
 
-import ReactECharts from "echarts-for-react";
-
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 const categoryOptions = [
-  { label: "全部", value: "全部" },
-  { label: "数据资源类", value: "数据资源类" },
-  { label: "数据技术类", value: "数据技术类" },
-  { label: "数据服务类", value: "数据服务类" },
-  { label: "数据安全类", value: "数据安全类" },
-  { label: "数据基础设施类", value: "数据基础设施类" },
-  { label: "其他数据相关类", value: "其他数据相关类" },
+  { label: "全部类型", value: "全部" },
+  { label: "数据资源", value: "数据资源" },
+  { label: "数据技术", value: "数据技术" },
+  { label: "数据服务", value: "数据服务" },
+  { label: "数据应用", value: "数据应用" },
+  { label: "数据安全", value: "数据安全" },
+  { label: "数据基础设施", value: "数据基础设施" },
 ];
 
 const townOptions = [
-  { label: "全部", value: "全部" },
+  { label: "全部镇街", value: "全部" },
   { label: "桂城街道", value: "桂城街道" },
   { label: "狮山镇", value: "狮山镇" },
   { label: "大沥镇", value: "大沥镇" },
@@ -39,145 +40,138 @@ const townOptions = [
   { label: "九江镇", value: "九江镇" },
 ];
 
+const exampleQueries = [
+  "查找桂城街道的数据服务企业",
+  "帮我找数据安全企业",
+  "搜索狮山镇的企业",
+];
+
 function App() {
   const [selectedCategory, setSelectedCategory] = useState("全部");
   const [selectedTown, setSelectedTown] = useState("全部");
   const [keyword, setKeyword] = useState("");
   const [tableData, setTableData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState({
-    total: 0,
-    service: 0,
-    tech: 0,
-    security: 0,
-    infrastructure: 0,
-    other: 0,
-  });
+  const [stats, setStats] = useState(null);
+  const [querySummary, setQuerySummary] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
 
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 5,
+    pageSize: 20,
     total: 0,
   });
+
+  const formatItems = (items) =>
+    (Array.isArray(items) ? items : []).map((item) => ({
+      key: item.id,
+      ...item,
+    }));
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch("/api/enterprises/stats");
+      if (!response.ok) {
+        throw new Error("获取统计信息失败");
+      }
+
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      message.error(error.message || "统计信息加载失败");
+    }
+  };
 
   const fetchEnterprises = async ({
     category = selectedCategory,
     town = selectedTown,
-    page = pagination.current,
+    page = 1,
     pageSize = pagination.pageSize,
     keywordValue = keyword,
   } = {}) => {
     try {
       setLoading(true);
+      setQuerySummary(null);
 
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(pageSize),
+      });
 
-      if (category && category !== "全部") {
+      if (category !== "全部") {
         params.append("category", category);
       }
-
-      if (town && town !== "全部") {
+      if (town !== "全部") {
         params.append("town", town);
       }
-
-      if (keywordValue && keywordValue.trim()) {
+      if (keywordValue.trim()) {
         params.append("keyword", keywordValue.trim());
       }
 
-      params.append("page", String(page));
-      params.append("page_size", String(pageSize));
-
-      const url = `http://127.0.0.1:8000/enterprises/?${params.toString()}`;
-      const response = await fetch(url);
-
+      const response = await fetch(`/api/enterprises/?${params.toString()}`);
       if (!response.ok) {
-        throw new Error("获取企业数据失败");
+        throw new Error("获取企业列表失败");
       }
 
       const data = await response.json();
-
-      const items = Array.isArray(data.items) ? data.items : [];
-
-      const formattedData = items.map((item) => ({
-        key: item.id,
-        id: item.id,
-        name: item.name || "",
-        town: item.town || "",
-        category: item.category || "",
-        products: item.products || "",
-      }));
-
-      setTableData(formattedData);
-
-      setPagination((prev) => ({
-        ...prev,
+      setTableData(formatItems(data.items));
+      setPagination({
         current: data.page || 1,
-        pageSize: data.page_size || 5,
+        pageSize: data.page_size || pageSize,
         total: data.total || 0,
-      }));
+      });
     } catch (error) {
-      console.error(error);
-      message.error("加载企业数据失败，请检查后端是否启动");
+      message.error(error.message || "加载企业列表失败");
     } finally {
       setLoading(false);
     }
   };
 
-const fetchStats = async () => {
-  try {
-    const response = await fetch("http://127.0.0.1:8000/enterprises/stats");
-
-    if (!response.ok) {
-      throw new Error("获取统计数据失败");
+  const runNaturalLanguageQuery = async (text) => {
+    const cleanText = text.trim();
+    if (!cleanText) {
+      message.warning("请输入查询内容后再执行文字查询");
+      return;
     }
 
-    const data = await response.json();
-    setStats(data);
-  } catch (error) {
-    console.error(error);
-    message.error("加载统计数据失败");
-  }
-};
+    try {
+      setLoading(true);
+
+      const params = new URLSearchParams({
+        text: cleanText,
+        page: "1",
+        page_size: String(pagination.pageSize),
+      });
+
+      const response = await fetch(`/api/enterprises/query?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error("自然语言查询失败");
+      }
+
+      const data = await response.json();
+      setQuerySummary(data.parsed);
+      setSelectedCategory(data.parsed.category || "全部");
+      setSelectedTown(data.parsed.town || "全部");
+      setKeyword(data.parsed.keyword || "");
+      setTableData(formatItems(data.items));
+      setPagination({
+        current: data.page || 1,
+        pageSize: data.page_size || pagination.pageSize,
+        total: data.total || 0,
+      });
+    } catch (error) {
+      message.error(error.message || "查询失败");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchEnterprises({
-      category: selectedCategory,
-      town: selectedTown,
-      page: 1,
-      pageSize: pagination.pageSize,
-      keywordValue: keyword,
-    });
     fetchStats();
+    fetchEnterprises();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, selectedTown]);
-
-  const columns = [
-    {
-      title: "企业名称",
-      dataIndex: "name",
-      key: "name",
-    },
-    {
-      title: "镇街",
-      dataIndex: "town",
-      key: "town",
-    },
-    {
-      title: "分类",
-      dataIndex: "category",
-      key: "category",
-      render: (value) => <Tag>{value}</Tag>,
-    },
-    {
-      title: "主营产品",
-      dataIndex: "products",
-      key: "products",
-    },
-  ];
-
-  const totalCount = stats.total;
-  const serviceCount = stats.service;
-  const techCount = stats.tech;
+  }, []);
 
   const handleTableChange = (newPagination) => {
     fetchEnterprises({
@@ -189,7 +183,7 @@ const fetchStats = async () => {
     });
   };
 
-  const handleSearch = () => {
+  const handleFilterSearch = () => {
     fetchEnterprises({
       category: selectedCategory,
       town: selectedTown,
@@ -199,127 +193,229 @@ const fetchStats = async () => {
     });
   };
 
-  const chartOption = {
-    title: {
-    text: "企业分类分布",
-    left: "center",
-    },
-    tooltip: {},
-    xAxis: {
-      type: "category",
-      data: [
-        "数据服务类",
-        "数据技术类",
-        "数据安全类",
-        "数据基础设施类",
-        "其他数据相关类",
-      ],
-    },
-    yAxis: {
-      type: "value",
-    },
-    series: [
-      {
-      data: [
-        stats.service,
-        stats.tech,
-        stats.security,
-        stats.infrastructure,
-        stats.other
+  const handleVoiceSearch = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      ],
-      type: "bar",
-      },
-    ]
+    if (!SpeechRecognition) {
+      message.warning("当前浏览器不支持语音识别，请改用文字查询");
+      return;
+    }
+
+    if (!recognitionRef.current) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "zh-CN";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = () => {
+        setIsListening(false);
+        message.error("语音识别失败，请重试");
+      };
+      recognition.onresult = (event) => {
+        const transcript = event.results?.[0]?.[0]?.transcript?.trim() || "";
+        if (!transcript) {
+          message.warning("没有识别到有效内容");
+          return;
+        }
+        setKeyword(transcript);
+        runNaturalLanguageQuery(transcript);
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    recognitionRef.current.start();
   };
 
+  const columns = [
+    {
+      title: "企业名",
+      dataIndex: "name",
+      key: "name",
+      width: 240,
+      fixed: "left",
+    },
+    {
+      title: "所在镇街",
+      dataIndex: "town",
+      key: "town",
+      width: 150,
+      render: (value) => <Tag color="blue">{value}</Tag>,
+    },
+    {
+      title: "主要类型",
+      dataIndex: "category",
+      key: "category",
+      width: 160,
+      render: (value) => <Tag color="gold">{value}</Tag>,
+    },
+    {
+      title: "分类依据",
+      dataIndex: "category_reason",
+      key: "category_reason",
+      width: 360,
+      ellipsis: true,
+    },
+    {
+      title: "主营产品",
+      dataIndex: "products",
+      key: "products",
+      width: 300,
+      ellipsis: true,
+    },
+  ];
+
   return (
-    <div style={{ padding: 24, background: "#f5f5f5", minHeight: "100vh" }}>
-      <Card style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <Space direction="vertical" size="large" style={{ width: "100%" }}>
+    <div className="page-shell">
+      <div className="page-content">
+        <section className="hero-panel">
           <div>
-            <Title level={2} style={{ marginBottom: 8 }}>
-              南海区数据产业企业图谱
-            </Title>
-            <Paragraph style={{ marginBottom: 0 }}>
-              展示后端真实企业数据，支持按分类、镇街筛选，支持关键词搜索和分页。
+            <Text className="eyebrow">NANHAI DATA MAP</Text>
+            <Title>南海区数据产业图谱查询系统</Title>
+            <Paragraph className="hero-copy">
+              严格围绕比赛要求展示企业名、所在镇街、主要类型、分类依据、主营产品，
+              并提供文字查询与语音查询入口，方便作品演示和答辩。
             </Paragraph>
           </div>
-
-          <Card style={{ marginTop: 20 }}>
-            <ReactECharts option={chartOption} style={{ height: 350 }} />
-          </Card>
-
-          <Row gutter={16}>
-            <Col span={8}>
-              <Card>
-                <Statistic title="企业总数" value={totalCount} />
-              </Card>
-            </Col>
-            <Col span={8}>
-              <Card>
-                <Statistic title="数据服务类数量" value={serviceCount} />
-              </Card>
-            </Col>
-            <Col span={8}>
-              <Card>
-                <Statistic title="数据技术类数量" value={techCount} />
-              </Card>
-            </Col>
-          </Row>
-
-          <Space wrap size="middle">
-            <div style={{ width: 220 }}>
-              <div style={{ marginBottom: 8, fontWeight: 500 }}>按分类筛选</div>
-              <Select
-                style={{ width: "100%" }}
-                value={selectedCategory}
-                onChange={(value) => setSelectedCategory(value)}
-                options={categoryOptions}
+          <div className="hero-metrics">
+            <Card className="metric-card">
+              <Statistic
+                title="当前已入库企业"
+                value={stats?.total || 0}
+                suffix={`/ ${stats?.target || 1000}`}
               />
+            </Card>
+            <Card className="metric-card">
+              <Statistic
+                title="覆盖镇街"
+                value={Object.values(stats?.town_stats || {}).filter(Boolean).length}
+                suffix="/ 7"
+              />
+            </Card>
+          </div>
+        </section>
+
+        <Row gutter={[16, 16]} className="stats-grid">
+          {categoryOptions
+            .filter((item) => item.value !== "全部")
+            .map((item) => (
+              <Col xs={12} md={8} xl={4} key={item.value}>
+                <Card className="stats-card">
+                  <Statistic
+                    title={item.label}
+                    value={stats?.category_stats?.[item.value] || 0}
+                  />
+                </Card>
+              </Col>
+            ))}
+        </Row>
+
+        <Card className="query-card">
+          <Space direction="vertical" size="large" style={{ width: "100%" }}>
+            <div>
+              <Title level={4}>文字 / 语音查询</Title>
+              <Paragraph>
+                可以直接输入“查找桂城街道的数据服务企业”这类自然语言，也可以点击语音按钮进行口述查询。
+              </Paragraph>
             </div>
 
-            <div style={{ width: 220 }}>
-              <div style={{ marginBottom: 8, fontWeight: 500 }}>按镇街筛选</div>
-              <Select
-                style={{ width: "100%" }}
-                value={selectedTown}
-                onChange={(value) => setSelectedTown(value)}
-                options={townOptions}
-              />
-            </div>
+            <Space wrap>
+              {exampleQueries.map((query) => (
+                <Button key={query} onClick={() => runNaturalLanguageQuery(query)}>
+                  {query}
+                </Button>
+              ))}
+            </Space>
 
-            <div style={{ width: 260 }}>
-              <div style={{ marginBottom: 8, fontWeight: 500 }}>按企业名称搜索</div>
-              <Input.Search
-                placeholder="输入企业名称关键词"
+            <div className="query-toolbar">
+              <Input
+                size="large"
                 value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                onSearch={handleSearch}
-                allowClear
+                placeholder="例如：帮我找桂城街道的数据技术企业"
+                onChange={(event) => setKeyword(event.target.value)}
+                onPressEnter={() => runNaturalLanguageQuery(keyword)}
               />
+              <Button
+                size="large"
+                type="primary"
+                onClick={() => runNaturalLanguageQuery(keyword)}
+              >
+                文字查询
+              </Button>
+              <Button
+                size="large"
+                className={isListening ? "listening-btn" : ""}
+                onClick={handleVoiceSearch}
+              >
+                {isListening ? "停止录音" : "语音查询"}
+              </Button>
             </div>
-          </Space>
 
+            {querySummary && (
+              <Alert
+                type="info"
+                showIcon
+                message="语义解析结果"
+                description={`类型：${querySummary.category || "未识别"}；镇街：${querySummary.town || "未识别"}；关键词：${querySummary.keyword || "无"}`}
+              />
+            )}
+          </Space>
+        </Card>
+
+        <Card className="filter-card">
+          <Space wrap size="middle">
+            <Select
+              value={selectedCategory}
+              options={categoryOptions}
+              onChange={setSelectedCategory}
+              style={{ width: 180 }}
+            />
+            <Select
+              value={selectedTown}
+              options={townOptions}
+              onChange={setSelectedTown}
+              style={{ width: 180 }}
+            />
+            <Input.Search
+              value={keyword}
+              placeholder="按企业名称关键词筛选"
+              allowClear
+              onChange={(event) => setKeyword(event.target.value)}
+              onSearch={handleFilterSearch}
+              style={{ width: 320 }}
+            />
+            <Button onClick={handleFilterSearch}>按条件筛选</Button>
+          </Space>
+        </Card>
+
+        <Card className="table-card">
           <Table
             columns={columns}
             dataSource={tableData}
             loading={loading}
-            locale={{
-              emptyText: <Empty description="暂无符合条件的企业数据" />,
-            }}
+            rowKey="id"
+            scroll={{ x: 1300 }}
+            locale={{ emptyText: <Empty description="暂无符合条件的数据" /> }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
               total: pagination.total,
               showSizeChanger: true,
-              pageSizeOptions: ["5", "10", "20"],
-              showTotal: (total) => `共 ${total} 条`,
+              pageSizeOptions: ["10", "20", "50"],
+              showTotal: (total) => `共 ${total} 条企业记录`,
             }}
             onChange={handleTableChange}
           />
-        </Space>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

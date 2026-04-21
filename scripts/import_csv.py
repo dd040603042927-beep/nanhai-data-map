@@ -1,49 +1,86 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import csv
+import os
 import re
+import sys
 from pathlib import Path
 
-import re
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.database import SessionLocal
 from backend.models import Enterprise
 
 CSV_PATH = Path("data/amap_enterprises.csv")
 
+OFFICIAL_TOWNS = [
+    "桂城街道",
+    "狮山镇",
+    "大沥镇",
+    "里水镇",
+    "丹灶镇",
+    "西樵镇",
+    "九江镇",
+]
+
+CATEGORY_ALIASES = {
+    "数据资源": "数据资源",
+    "数据资源类": "数据资源",
+    "数据资源企业": "数据资源",
+    "数据技术": "数据技术",
+    "数据技术类": "数据技术",
+    "数据技术企业": "数据技术",
+    "数据服务": "数据服务",
+    "数据服务类": "数据服务",
+    "数据服务企业": "数据服务",
+    "数据应用": "数据应用",
+    "数据应用类": "数据应用",
+    "数据应用企业": "数据应用",
+    "数据安全": "数据安全",
+    "数据安全类": "数据安全",
+    "数据安全企业": "数据安全",
+    "数据基础设施": "数据基础设施",
+    "数据基础设施类": "数据基础设施",
+    "数据基础设施企业": "数据基础设施",
+    "其他数据相关类": "数据应用",
+}
+
 
 def safe_str(row, key):
-    value = row.get(key)
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
-def parse_bool(value: str) -> bool:
-    return safe_lower(value) in {"true", "1", "yes", "是"}
-
-
-def safe_lower(value) -> str:
-    if value is None:
-        return ""
-    return str(value).strip().lower()
+    return str(row.get(key) or "").strip()
 
 
 def normalize_name(name: str) -> str:
-    if not name:
-        return ""
+    text = name.strip()
+    text = re.sub(r"[（(].*?[）)]", "", text)
+    text = re.sub(r"\s+", "", text)
+    return text.lower()
 
-    name = name.strip()
 
-    # 去掉括号内容
-    name = re.sub(r"[（(].*?[）)]", "", name)
+def normalize_town(value: str) -> str:
+    text = value.strip()
+    for town in OFFICIAL_TOWNS:
+        if town in text:
+            return town
 
-    # 去掉空格
-    name = re.sub(r"\s+", "", name)
+    short_names = {
+        "桂城": "桂城街道",
+        "狮山": "狮山镇",
+        "大沥": "大沥镇",
+        "里水": "里水镇",
+        "丹灶": "丹灶镇",
+        "西樵": "西樵镇",
+        "九江": "九江镇",
+    }
 
-    return name.lower()
+    for short_name, full_name in short_names.items():
+        if short_name in text:
+            return full_name
+
+    return "待补充"
+
+
+def normalize_category(value: str) -> str:
+    text = value.strip()
+    return CATEGORY_ALIASES.get(text, "待分类")
 
 
 def main():
@@ -55,76 +92,41 @@ def main():
 
     try:
         existing_names = {
-            normalize_name(item.name): item.id
-            for item in db.query(Enterprise).all()
+            normalize_name(item.name): item.id for item in db.query(Enterprise).all()
         }
 
         success_count = 0
         skip_count = 0
 
-        with open(CSV_PATH, "r", encoding="utf-8-sig", newline="") as f:
-            reader = csv.DictReader(f)
+        with CSV_PATH.open("r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
 
             for row in reader:
                 name = safe_str(row, "企业名称")
-                town = safe_str(row, "所在镇街")
-                category = safe_str(row, "主要类型")
-                category_reason = safe_str(row, "分类依据")
-                products = safe_str(row, "主营产品")
-                source_url = safe_str(row, "数据来源")
-                evidence = safe_str(row, "证据片段")
-                confidence_raw = safe_str(row, "置信度")
-                reviewed_raw = safe_str(row, "是否人工复核")
-
                 if not name:
-                    print("跳过：企业名称为空")
                     skip_count += 1
                     continue
 
-                normalized = normalize_name(name)
-                if normalized in existing_names:
-                    print(f"跳过重复企业：{name}")
-                    skip_count += 1
-                    continue
-
-                try:
-                    confidence = float(confidence_raw) if confidence_raw else 0.0
-                except ValueError:
-                    print(f"跳过：置信度格式错误 -> {name}")
-                    skip_count += 1
-                    continue
-
-                reviewed = parse_bool(reviewed_raw)
-
-                normalized_name = normalize_name(row["企业名称"])
-                existing = db.query(Enterprise).all()
-                is_duplicate = False
-
-                for item in existing:
-                    if normalize_name(item.name) == normalized_name:
-                        is_duplicate = True
-                        break
-
-                if is_duplicate:
+                normalized_name = normalize_name(name)
+                if normalized_name in existing_names:
                     skip_count += 1
                     continue
 
                 enterprise = Enterprise(
                     name=name,
-                    town=town,
-                    category=category,
-                    category_reason=category_reason,
-                    products=products,
-                    source_url=source_url,
-                    evidence=evidence,
-                    confidence=confidence,
-                    reviewed=reviewed,
+                    town=normalize_town(safe_str(row, "所在镇街")),
+                    category=normalize_category(safe_str(row, "主要类型")),
+                    category_reason=safe_str(row, "分类依据") or "待补充",
+                    products=safe_str(row, "主营产品") or "待补充",
+                    source_url=safe_str(row, "数据来源"),
+                    evidence=safe_str(row, "证据片段"),
+                    confidence=0.0,
+                    reviewed=False,
                 )
 
                 db.add(enterprise)
                 db.flush()
-
-                existing_names[normalized] = enterprise.id
+                existing_names[normalized_name] = enterprise.id
                 success_count += 1
 
         db.commit()
@@ -132,10 +134,9 @@ def main():
         print(f"成功导入：{success_count} 条")
         print(f"跳过：{skip_count} 条")
 
-    except Exception as e:
+    except Exception as exc:
         db.rollback()
-        print("导入失败：", e)
-
+        print("导入失败：", exc)
     finally:
         db.close()
 
