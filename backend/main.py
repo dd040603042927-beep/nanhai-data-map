@@ -3,9 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend import models
 from backend.api.enterprise import router as enterprise_router
-from backend.database import engine
+from backend.database import engine, ensure_enterprise_schema
 
 models.Base.metadata.create_all(bind=engine)
+ensure_enterprise_schema()
 
 app = FastAPI(
     title="Nanhai Data Map API",

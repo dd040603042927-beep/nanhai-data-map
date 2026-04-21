@@ -49,8 +49,14 @@ npm run dev
 
 ```bash
 cd /mnt/d/mpb/nanhai-data-map
-python3 scripts/normalize_enterprises.py
-python3 scripts/import_csv.py
+python3 scripts/run_full_pipeline.py
+```
+
+常用参数：
+
+```bash
+python3 scripts/run_full_pipeline.py --skip-amap
+python3 scripts/run_full_pipeline.py --skip-amap --skip-llm
 ```
 
 ## 当前数据状态

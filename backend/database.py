@@ -3,6 +3,9 @@
 集中管理 SQLAlchemy 的数据库连接、会话工厂和基础模型类。
 """
 
+import sqlite3
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -26,6 +29,26 @@ SessionLocal = sessionmaker(
 # 所有 ORM 模型都继承这个 Base。
 Base = declarative_base()
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SQLITE_PATH = PROJECT_ROOT / "enterprise.db"
+
+EXTRA_ENTERPRISE_COLUMNS = {
+    "data_sources": "TEXT",
+    "evidence_summary": "TEXT",
+    "source_count": "INTEGER DEFAULT 0",
+    "company_size": "VARCHAR(50)",
+    "profile_tags": "TEXT",
+    "confidence_level": "VARCHAR(50)",
+    "chain_position": "VARCHAR(50)",
+    "upstream_enterprises": "TEXT",
+    "downstream_enterprises": "TEXT",
+    "related_enterprises": "TEXT",
+    "llm_summary": "TEXT",
+    "llm_label_suggestion": "VARCHAR(100)",
+    "llm_provider": "VARCHAR(100)",
+    "crawler_status": "VARCHAR(50)",
+}
+
 
 def get_db():
     """为 FastAPI 依赖注入提供数据库会话，并在请求结束后自动关闭。"""
@@ -34,3 +57,24 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_enterprise_schema():
+    """兼容旧 SQLite 数据库，自动补齐新增字段。"""
+    if not SQLITE_PATH.exists():
+        return
+
+    conn = sqlite3.connect(SQLITE_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(enterprises)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    for column_name, column_type in EXTRA_ENTERPRISE_COLUMNS.items():
+        if column_name not in existing_columns:
+            cursor.execute(
+                f"ALTER TABLE enterprises ADD COLUMN {column_name} {column_type}"
+            )
+
+    conn.commit()
+    conn.close()
