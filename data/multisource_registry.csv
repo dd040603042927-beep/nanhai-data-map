@@ -1,5 +1,0 @@
-﻿id,name,status,description
-amap_poi,高德 POI,enabled,发现候选企业、地址、POI 类型。
-company_website,企业官网,enabled,通过搜索引擎发现官网并抓取主营业务、产品与解决方案证据。
-baike,百科信息,enabled,检索百科页面，补充企业简介与公开知识条目。
-job_board,招聘网站,enabled,抓取招聘页面摘要，推断技术栈、岗位画像与数据业务方向。

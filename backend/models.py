@@ -35,3 +35,6 @@ class Enterprise(Base):
     llm_label_suggestion = Column(String(100), nullable=True)       # LLM 建议分类
     llm_provider = Column(String(100), nullable=True)               # LLM 提供方
     crawler_status = Column(String(50), nullable=True)              # 采集平台状态
+
+    # 采集批次标记
+    collect_batch = Column(String(50), nullable=True)               # 采集批次

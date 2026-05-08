@@ -7,40 +7,49 @@ from backend.constants import normalize_category, normalize_town
 
 SOURCE_REGISTRY = [
     {
+        "id": "search_engine",
+        "name": "🔎 多源搜索引擎",
+        "type": "公开搜索",
+        "status": "已接入",
+        "description": "通过天眼查/企查查/招聘/采购/协会等公开渠道批量发现企业",
+        "script": "search_engine_source.py",
+        "action_label": "搜索发现",
+    },
+    {
         "id": "amap_poi",
-        "name": "高德 POI",
+        "name": "🔍 高德POI发现",
         "type": "地图公开数据",
         "status": "已接入",
-        "description": "用于批量发现南海区候选数据企业与地址线索。",
+        "description": "批量发现南海区内候选数据企业与地址线索，帮你凑齐1000家名单",
         "script": "amap_poi_source.py",
-        "action_label": "立即采集",
+        "action_label": "发现候选企业",
     },
     {
         "id": "company_website",
-        "name": "企业官网",
+        "name": "📝 官网快照提取",
         "type": "企业公开信息",
         "status": "已接入",
-        "description": "用于抽取主营产品、解决方案、数据业务描述。",
+        "description": "自动提取企业官网的核心业务描述，为分类依据提供证据引用",
         "script": "company_website_source.py",
-        "action_label": "抓取官网信息",
+        "action_label": "提取官网快照",
     },
     {
-        "id": "baike",
-        "name": "百科信息",
-        "type": "公开知识库",
+        "id": "ai_classify",
+        "name": "🤖 AI分类建议",
+        "type": "AI智能体",
         "status": "已接入",
-        "description": "用于补充企业简介、行业定位、关联信息。",
-        "script": "baike_source.py",
-        "action_label": "抓取百科信息",
+        "description": "基于企业描述文字，自动推荐六大分类并生成分类依据草稿",
+        "script": "",
+        "action_label": "获取AI建议",
     },
     {
         "id": "job_board",
-        "name": "招聘网站",
+        "name": "📊 企业画像补全",
         "type": "岗位数据",
         "status": "已接入",
-        "description": "用于推断企业技术栈、业务方向与数据岗位画像。",
+        "description": "补全企业规模、产业链位置等加分项字段",
         "script": "job_board_source.py",
-        "action_label": "抓取岗位信息",
+        "action_label": "补全企业画像",
     },
 ]
 
@@ -111,6 +120,8 @@ def infer_data_sources(item) -> list[str]:
         inferred.append("百科信息")
     if "招聘" in merged_text or "岗位" in merged_text or "job" in merged_text:
         inferred.append("招聘网站")
+    if "天眼查" in merged_text or "企查查" in merged_text or "搜索" in merged_text:
+        inferred.append("搜索引擎")
 
     if not inferred:
         inferred.append("公开资料")
@@ -181,12 +192,25 @@ def infer_confidence_level(item, source_count: int) -> str:
     if stored:
         return stored
 
+    # 人工复核过的，直接最高可信度
     if getattr(item, "reviewed", False):
         return "高"
-    if getattr(item, "confidence", 0) >= 0.8 or source_count >= 3:
+
+    # 按置信度数值判断
+    conf = getattr(item, "confidence", 0) or 0
+    if conf >= 0.8:
         return "高"
-    if getattr(item, "confidence", 0) >= 0.6 or source_count >= 2:
+    if conf >= 0.6:
         return "中"
+
+    # 按来源数量判断
+    if source_count >= 3:
+        return "高"
+    if source_count >= 2:
+        return "中"
+    if source_count >= 1:
+        return "中"  # 至少有一个来源，默认中等可信
+
     return "低"
 
 
@@ -453,6 +477,7 @@ def build_platform_overview(items) -> dict:
         "confidence_distribution": dict(confidence_counter),
         "chain_distribution": dict(chain_counter),
         "platform_capabilities": [
+            "多源搜索引擎采集",
             "多源数据采集",
             "证据摘要生成",
             "企业画像构建",
@@ -462,7 +487,7 @@ def build_platform_overview(items) -> dict:
         ],
         "agent_framework": {
             "name": "Nanhai Data Agent",
-            "mode": "规则引擎 + 可选 LLM",
+            "mode": "规则引擎 + 可选 LLM + 多源搜索",
             "status": "已集成基础框架",
         },
     }

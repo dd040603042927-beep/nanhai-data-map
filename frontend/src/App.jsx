@@ -69,10 +69,18 @@ function App() {
     merged_count: 0,
   });
   const [runningTaskId, setRunningTaskId] = useState("");
-  const [platformInstruction, setPlatformInstruction] = useState("查找数据服务类型的企业");
+  const [platformInstruction, setPlatformInstruction] = useState("采集桂城街道的数据服务企业");
   const [graphData, setGraphData] = useState(null);
   const [insightMap, setInsightMap] = useState({});
   const recognitionRef = useRef(null);
+
+  const [smartCollecting, setSmartCollecting] = useState(false);
+  const [smartCollectResult, setSmartCollectResult] = useState(null);
+
+  // 候选企业审核相关状态
+  const [candidates, setCandidates] = useState([]);
+  const [candidateLoading, setCandidateLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const [pagination, setPagination] = useState({
     current: 1,
@@ -128,6 +136,82 @@ function App() {
     }
   };
 
+  // 获取候选企业列表
+  const fetchCandidates = async () => {
+    try {
+      setCandidateLoading(true);
+      const response = await fetch("/api/enterprises/candidates");
+      if (!response.ok) throw new Error("获取候选列表失败");
+      const data = await response.json();
+      if (data.success) {
+        setCandidates(data.items || []);
+        setSelectedIds(data.items?.filter(item => item.selected).map(item => item.id) || []);
+      }
+    } catch (error) {
+      message.error(error.message || "获取候选列表失败");
+    } finally {
+      setCandidateLoading(false);
+    }
+  };
+
+  // 切换单个选中状态
+  const toggleCandidate = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  // 全选/取消全选
+  const toggleAll = () => {
+    if (selectedIds.length === candidates.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(candidates.map(item => item.id));
+    }
+  };
+
+  // 批量确认入库
+  const approveCandidates = async () => {
+    if (selectedIds.length === 0) {
+      message.warning("请先选择要入库的企业");
+      return;
+    }
+    try {
+      const ids = selectedIds.join(",");
+      const response = await fetch(`/api/enterprises/candidates/approve?ids=${ids}`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("入库失败");
+      const data = await response.json();
+      message.success(`成功入库 ${data.approved_count} 家企业`);
+      await fetchCandidates();
+      await Promise.all([fetchStats(), fetchEnterprises(), fetchGraphData()]);
+    } catch (error) {
+      message.error(error.message || "入库失败");
+    }
+  };
+
+  // 批量删除
+  const rejectCandidates = async () => {
+    if (selectedIds.length === 0) {
+      message.warning("请先选择要删除的企业");
+      return;
+    }
+    try {
+      const ids = selectedIds.join(",");
+      const response = await fetch(`/api/enterprises/candidates/reject?ids=${ids}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("删除失败");
+      const data = await response.json();
+      message.success(`已删除 ${data.rejected_count} 家企业`);
+      await fetchCandidates();
+      await Promise.all([fetchStats(), fetchEnterprises(), fetchGraphData()]);
+    } catch (error) {
+      message.error(error.message || "删除失败");
+    }
+  };
+
   const runPlatformTask = async (taskId) => {
     try {
       setRunningTaskId(taskId);
@@ -176,6 +260,57 @@ function App() {
       message.error(error.message || "平台任务执行失败");
     } finally {
       setRunningTaskId("");
+    }
+  };
+
+  // 一键智能采集
+  const runSmartCollect = async () => {
+    const instruction = platformInstruction.trim();
+    if (!instruction) {
+      message.warning("请输入采集指令");
+      return;
+    }
+
+    try {
+      setSmartCollecting(true);
+      setSmartCollectResult(null);
+
+      const params = new URLSearchParams({
+        instruction: instruction,
+      });
+
+      const response = await fetch(`/api/enterprises/smart-collect?${params.toString()}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("智能采集失败");
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || "智能采集失败");
+      }
+
+      setSmartCollectResult(data);
+      message.success(data.message || "智能采集完成");
+
+      await fetchCandidates();
+      await Promise.all([
+        fetchStats(),
+        fetchEnterprises({
+          category: filterCategory,
+          town: filterTown,
+          page: pagination.current,
+          pageSize: pagination.pageSize,
+          keywordValue: filterKeyword,
+        }),
+        fetchPlatformOverview(),
+        fetchGraphData(),
+      ]);
+    } catch (error) {
+      message.error(error.message || "智能采集失败");
+    } finally {
+      setSmartCollecting(false);
     }
   };
 
@@ -266,6 +401,7 @@ function App() {
     fetchEnterprises();
     fetchPlatformOverview();
     fetchGraphData();
+    fetchCandidates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -576,67 +712,153 @@ function App() {
 
         <Row gutter={[16, 16]} className="stats-grid platform-panels">
           <Col xs={24} xl={10}>
-            <Card className="table-card panel-card" title="采集平台化 / 智能体框架化">
-              <Space direction="vertical" size="middle" style={{ width: "100%", marginBottom: 16 }}>
-                <Input
-                  value={platformInstruction}
-                  placeholder="例如：查找数据服务类型的企业"
-                  onChange={(event) => setPlatformInstruction(event.target.value)}
-                />
-                <Text type="secondary">
-                  输入采集指令后，再点击下方对应数据源的执行任务按钮。
-                </Text>
-              </Space>
-              <div className="platform-grid">
-                {(platformOverview?.sources || []).map((source) => (
-                  <div key={source.id} className="platform-item">
-                    <div className="platform-item-title">{source.name}</div>
-                    <div className="platform-item-meta">{source.type} · {source.status}</div>
-                    <div className="platform-item-desc">{source.description}</div>
-                    <div className="platform-actions">
-                      <Button
-                        type="primary"
-                        size="small"
-                        loading={runningTaskId === source.id}
-                        disabled={!platformInstruction.trim()}
-                        onClick={() => runPlatformTask(source.id)}
-                      >
-                        {source.action_label || "执行任务"}
-                      </Button>
+            <Card className="table-card panel-card" title="🤖 AI智能采集引擎">
+              <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                <div>
+                  <Text strong>💬 输入采集指令</Text>
+                  <Input
+                    size="large"
+                    value={platformInstruction}
+                    placeholder="例如：采集桂城街道的数据服务企业"
+                    onChange={(event) => setPlatformInstruction(event.target.value)}
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+
+                <Button
+                  type="primary"
+                  size="large"
+                  loading={smartCollecting}
+                  disabled={!platformInstruction.trim()}
+                  onClick={runSmartCollect}
+                  block
+                >
+                  {smartCollecting ? "正在智能采集中..." : "🚀 一键智能采集"}
+                </Button>
+
+                {smartCollectResult && (
+                  <Alert
+                    type="success"
+                    showIcon
+                    message="✅ 采集完成"
+                    description={
+                      <div>
+                        <p style={{ marginBottom: 6 }}>
+                          📊 指令解析：类型{" "}
+                          <Tag color="blue">{smartCollectResult.parsed?.category || "未指定"}</Tag>
+                          {" "}镇街{" "}
+                          <Tag color="green">{smartCollectResult.parsed?.town || "未指定"}</Tag>
+                        </p>
+                        <p style={{ marginBottom: 6 }}>
+                          🔧 执行流程：{smartCollectResult.tasks_executed?.map((t) => {
+                            const names = { search_engine: "🔎多源搜索", amap_poi: "🔍高德POI", company_website: "📝官网快照" };
+                            return names[t] || t;
+                          }).join(" → ")} → 🤖AI自动分类
+                        </p>
+                        <p style={{ marginBottom: 6 }}>
+                          ✅ 采集: {smartCollectResult.collected_count}条 |{" "}
+                          入库: {smartCollectResult.imported_count}条 |{" "}
+                          AI分类: {smartCollectResult.classified_count}条
+                        </p>
+                        <p style={{ marginBottom: 0 }}>
+                          📈 数据库现有企业：<strong>{smartCollectResult.total_enterprises}</strong> / 1000
+                        </p>
+                        {smartCollectResult.new_candidates > 0 && (
+                          <p style={{ marginTop: 6, color: "#d35400", fontWeight: 600 }}>
+                            📋 {smartCollectResult.review_hint || `有 ${smartCollectResult.new_candidates} 家候选企业需要审核`}
+                          </p>
+                        )}
+                      </div>
+                    }
+                  />
+                )}
+
+                {candidates.length > 0 && (
+                  <Card
+                    size="small"
+                    title={
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>📋 待审核候选企业（{candidates.length}家）</span>
+                        <Space size="small">
+                          <Button size="small" onClick={toggleAll}>
+                            {selectedIds.length === candidates.length ? "取消全选" : "全选"}
+                          </Button>
+                          <Button
+                            size="small"
+                            type="primary"
+                            disabled={selectedIds.length === 0}
+                            onClick={approveCandidates}
+                          >
+                            批量入库 ({selectedIds.length})
+                          </Button>
+                          <Button
+                            size="small"
+                            danger
+                            disabled={selectedIds.length === 0}
+                            onClick={rejectCandidates}
+                          >
+                            批量删除
+                          </Button>
+                        </Space>
+                      </div>
+                    }
+                    style={{ marginTop: 12 }}
+                  >
+                    <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                      {candidates.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #f0f0f0",
+                            cursor: "pointer",
+                          }}
+                          onClick={() => toggleCandidate(item.id)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(item.id)}
+                            onChange={() => toggleCandidate(item.id)}
+                            style={{ marginTop: 4, marginRight: 12 }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                              {item.name}
+                              {item.source_url && (
+                                <a
+                                  href={item.source_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{ fontSize: 12, marginLeft: 8, color: "#1890ff" }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  查看来源 →
+                                </a>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 13, color: "#666" }}>
+                              <Tag color="blue" style={{ marginRight: 6 }}>{item.town}</Tag>
+                              <Tag color="gold" style={{ marginRight: 6 }}>{item.category}</Tag>
+                              <span style={{ color: "#999" }}>
+                                分类依据：{item.category_reason?.substring(0, 40)}
+                                {(item.category_reason?.length || 0) > 40 ? "..." : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className="tag-block">
-                {(platformOverview?.platform_capabilities || []).map((item) => (
-                  <Tag key={item} color="purple">
-                    {item}
-                  </Tag>
-                ))}
-              </div>
-              <div className="platform-summary-grid">
-                <div className="platform-summary-card">
-                  <div className="platform-summary-label">采集成功</div>
-                  <div className="platform-summary-value">{platformSummary.collected_count} 条</div>
+                  </Card>
+                )}
+
+                <div style={{ marginTop: 8 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    已接入数据源：多源搜索 | 高德POI | 企业官网 | AI自动分类 | 企业画像补全
+                  </Text>
                 </div>
-                <div className="platform-summary-card">
-                  <div className="platform-summary-label">成功入库</div>
-                  <div className="platform-summary-value">{platformSummary.imported_count} 条</div>
-                </div>
-                <div className="platform-summary-card">
-                  <div className="platform-summary-label">成功合并</div>
-                  <div className="platform-summary-value">{platformSummary.merged_count} 条</div>
-                </div>
-              </div>
-              {platformLog && (
-                <Alert
-                  style={{ marginTop: 16 }}
-                  type="info"
-                  showIcon
-                  message="最近一次平台任务输出"
-                  description={<pre className="platform-log">{platformLog}</pre>}
-                />
-              )}
+              </Space>
             </Card>
           </Col>
           <Col xs={24} xl={14}>
@@ -655,7 +877,7 @@ function App() {
             <div>
               <Title level={4}>文字 / 语音查询</Title>
               <Paragraph>
-                可以直接输入“查找桂城街道的数据服务企业”这类自然语言，也可以点击语音按钮进行口述查询。
+                可以直接输入"查找桂城街道的数据服务企业"这类自然语言，也可以点击语音按钮进行口述查询。
               </Paragraph>
             </div>
 
