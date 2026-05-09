@@ -75,6 +75,10 @@
   margin-bottom: 20px;
 }
 
+.platform-panels > .ant-col {
+  display: flex;
+}
+
 .stats-card {
   background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
 }
@@ -86,10 +90,127 @@
   background: rgba(255, 255, 255, 0.92);
 }
 
+.panel-card {
+  width: 100%;
+  height: 100%;
+}
+
+.panel-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 57px);
+}
+
+.graph-panel-card .ant-card-body {
+  min-height: 100%;
+}
+
+.platform-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.platform-item {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffdf8 0%, #f4f7fb 100%);
+  border: 1px solid rgba(23, 48, 79, 0.08);
+}
+
+.platform-item-title {
+  font-weight: 700;
+  color: #17304f;
+  margin-bottom: 4px;
+}
+
+.platform-item-meta {
+  color: #9b5a22;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.platform-item-desc,
+.insight-text {
+  color: #43566f;
+  line-height: 1.7;
+}
+
+.platform-actions {
+  margin-top: 12px;
+}
+
+.platform-log {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.evidence-links,
+.evidence-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.evidence-links a {
+  color: #1d5fd0;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.evidence-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f7f9fc;
+  color: #43566f;
+  line-height: 1.6;
+}
+
+.tag-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.platform-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.platform-summary-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fffaf1 0%, #f6f8fc 100%);
+  border: 1px solid rgba(23, 48, 79, 0.08);
+}
+
+.platform-summary-label {
+  color: #9b5a22;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.platform-summary-value {
+  color: #17304f;
+  font-size: 22px;
+  font-weight: 700;
+}
+
 .query-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 12px;
+}
+
+.insight-panel {
+  padding: 8px 0;
 }
 
 .listening-btn {
@@ -103,7 +224,15 @@
     grid-template-columns: 1fr;
   }
 
+  .platform-panels > .ant-col {
+    display: block;
+  }
+
   .query-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-summary-grid {
     grid-template-columns: 1fr;
   }
 }

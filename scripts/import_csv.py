@@ -7,7 +7,9 @@ from pathlib import Path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.database import SessionLocal
+from backend.database import engine, ensure_enterprise_schema
 from backend.models import Enterprise
+from backend import models
 
 CSV_PATH = Path("data/amap_enterprises.csv")
 
@@ -87,6 +89,10 @@ def main():
     if not CSV_PATH.exists():
         print(f"找不到文件: {CSV_PATH}")
         return
+
+    # 允许在未启动后端的情况下直接导入 CSV。
+    models.Base.metadata.create_all(bind=engine)
+    ensure_enterprise_schema()
 
     db = SessionLocal()
 
