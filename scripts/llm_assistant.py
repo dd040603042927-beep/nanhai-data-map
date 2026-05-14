@@ -3,7 +3,26 @@ import os
 from pathlib import Path
 from urllib import error, request
 
-INPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "sample_20.csv"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+INPUT_CANDIDATES = [
+    DATA_DIR / "sample_100.csv",
+    DATA_DIR / "sample_20.csv",
+]
+
+
+def resolve_input_path() -> Path | None:
+    configured = os.getenv("SAMPLE_STANDARD_PATH", "").strip()
+    if configured:
+        configured_path = Path(configured)
+        if not configured_path.is_absolute():
+            configured_path = Path(__file__).resolve().parent.parent / configured_path
+        if configured_path.exists():
+            return configured_path
+
+    for path in INPUT_CANDIDATES:
+        if path.exists():
+            return path
+    return None
 
 
 def fallback_summary(name: str, category: str, reason: str, products: str) -> dict:
@@ -67,15 +86,16 @@ def call_llm(name: str, category: str, reason: str, products: str) -> dict:
 
 
 def main():
-    if not INPUT_PATH.exists():
-        print(f"未找到输入文件：{INPUT_PATH}")
+    input_path = resolve_input_path()
+    if not input_path:
+        print("未找到输入文件：sample_100.csv / sample_20.csv")
         return
 
     import csv
 
-    with INPUT_PATH.open("r", encoding="utf-8-sig", newline="") as file:
+    with input_path.open("r", encoding="utf-8-sig", newline="") as file:
         reader = csv.DictReader(file)
-        rows = list(reader[:3])
+        rows = list(reader)[:3]
 
     for row in rows:
         result = call_llm(
