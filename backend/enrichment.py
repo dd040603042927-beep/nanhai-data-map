@@ -25,6 +25,15 @@ SOURCE_REGISTRY = [
         "action_label": "发现候选企业",
     },
     {
+        "id": "enscan",
+        "name": "🏢 ENScan_GO",
+        "type": "企业信息平台API",
+        "status": "已接入",
+        "description": "通过爱企查/天眼查/企查查API获取企业工商信息、统一信用代码、经营范围",
+        "script": "enscan_source.py",
+        "action_label": "企业信息采集",
+    },
+    {
         "id": "company_website",
         "name": "📝 官网快照提取",
         "type": "企业公开信息",
@@ -41,15 +50,6 @@ SOURCE_REGISTRY = [
         "description": "基于企业描述文字，自动推荐六大分类并生成分类依据草稿",
         "script": "",
         "action_label": "获取AI建议",
-    },
-    {
-        "id": "job_board",
-        "name": "📊 企业画像补全",
-        "type": "岗位数据",
-        "status": "已接入",
-        "description": "补全企业规模、产业链位置等加分项字段",
-        "script": "job_board_source.py",
-        "action_label": "补全企业画像",
     },
 ]
 

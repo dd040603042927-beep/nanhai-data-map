@@ -66,12 +66,17 @@ def clear_database_rows():
     conn.close()
 
 
+# 在 reset_to_sample20.py 的 restore_sample_file 函数中
 def restore_sample_file():
     sample_path = next((path for path in SAMPLE_CANDIDATE_PATHS if path.exists()), None)
     if not sample_path:
         raise FileNotFoundError("找不到标准样本文件：sample_100.csv / sample_20.csv")
 
-    shutil.copyfile(sample_path, IMPORT_TARGET_PATH)
+    # 复制到 amap_enterprises.csv（最高优先级）
+    target_path = DATA_DIR / "amap_enterprises.csv"
+    shutil.copyfile(sample_path, target_path)
+    print(f"✅ 已用 {sample_path.name} 覆盖生成 {target_path.name}")
+
     return sample_path
 
 

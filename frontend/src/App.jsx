@@ -320,10 +320,7 @@ function App() {
 
   const graphNodeCount = graphData?.nodes?.length || 0;
   const graphLinkCount = graphData?.links?.length || 0;
-  const graphHeight = Math.min(
-    860,
-    Math.max(460, 360 + graphNodeCount * 3 + graphLinkCount * 0.35),
-  );
+  const graphHeight = Math.min(860, Math.max(460, 360 + graphNodeCount * 3 + graphLinkCount * 0.35));
 
   const graphOption = {
     color: ["#2f6fed", "#d97b16", "#2f9e75"],
@@ -448,11 +445,14 @@ function App() {
           />
         </Card>
 
-        {/* 智能采集模块 - 单输入框版本 */}
+        {/* 智能采集模块 - 仅 ENScan_GO */}
         <Card className="collect-card" style={{ marginBottom: 20, background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
           <div style={{ color: "white", marginBottom: 16 }}>
             <div style={{ fontSize: 18, fontWeight: "bold", marginBottom: 8 }}>
               <CloudUploadOutlined style={{ marginRight: 8 }} /> 智能采集
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>
+              基于天眼查 API 采集真实企业工商信息
             </div>
           </div>
 
@@ -510,15 +510,7 @@ function App() {
                 </Text>
                 {(collectResult.source_results || []).length > 0 && (
                   <Text style={{ color: "#d7e4ff", fontSize: 12 }}>
-                    数据源：
-                    {(collectResult.source_results || [])
-                      .map(item => `${item.source}${item.success ? "" : "失败"} ${item.collected || 0}家`)
-                      .join(" | ")}
-                  </Text>
-                )}
-                {collectResult.fallback_count > 0 && (
-                  <Text style={{ color: "#ffecb3", fontSize: 12 }}>
-                    外部源无候选，已生成 {collectResult.fallback_count} 家待复核候选线索。
+                    数据源：ENScan_GO / 天眼查
                   </Text>
                 )}
                 {collectResult.approveResult && (
@@ -538,17 +530,15 @@ function App() {
                   类型 {collectResult.parsed?.category || "未指定"} |
                   关键词 {collectResult.parsed?.keyword || "默认"}
                 </Text>
-                <Text style={{ color: "#d7e4ff", fontSize: 12 }}>
-                  实际搜索关键词：{collectResult.search_keyword || "未生成"}
-                </Text>
               </Space>
             </div>
           )}
+
           {collectCandidates.length > 0 && (
             <div className="candidate-review-panel">
               <div className="candidate-review-header">
                 <div>
-                  <Text strong>待筛选候选企业</Text>
+                  <Text strong>待筛选候选企业（ENScan_GO/天眼查）</Text>
                   <div className="candidate-review-meta">
                     已选 {selectedCandidateKeys.length} / {collectCandidates.length} 家，确认后才会写入正式数据库。
                   </div>

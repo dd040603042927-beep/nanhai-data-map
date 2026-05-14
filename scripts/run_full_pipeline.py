@@ -1,3 +1,8 @@
+"""
+南海区数据产业图谱一键全流程脚本
+支持采集源：高德POI、搜索引擎、ENScan_GO、企业官网
+"""
+
 import argparse
 import subprocess
 import sys
@@ -8,15 +13,21 @@ PYTHON = sys.executable
 
 
 def run_step(step_name: str, script_path: Path):
-    print(f"\n===== 开始执行：{step_name} =====")
+    """执行单个脚本步骤"""
+    print(f"\n{'=' * 60}")
+    print(f"开始执行：{step_name}")
+    print(f"{'=' * 60}")
+
     result = subprocess.run(
         [PYTHON, str(script_path)],
         cwd=BASE_DIR,
         check=False,
     )
+
     if result.returncode != 0:
         raise RuntimeError(f"{step_name} 执行失败，退出码：{result.returncode}")
-    print(f"===== 完成：{step_name} =====")
+
+    print(f"完成：{step_name}")
 
 
 def main():
@@ -27,6 +38,21 @@ def main():
         help="跳过高德 POI 采集，适合已有 data/amap_enterprises.csv 的情况",
     )
     parser.add_argument(
+        "--skip-search",
+        action="store_true",
+        help="跳过搜索引擎采集",
+    )
+    parser.add_argument(
+        "--skip-enscan",
+        action="store_true",
+        help="跳过 ENScan_GO 采集",
+    )
+    parser.add_argument(
+        "--skip-website",
+        action="store_true",
+        help="跳过企业官网采集",
+    )
+    parser.add_argument(
         "--skip-llm",
         action="store_true",
         help="跳过 LLM 辅助摘要演示脚本",
@@ -34,34 +60,48 @@ def main():
     args = parser.parse_args()
 
     pipeline = []
+
+    # ==================== 第一阶段：发现类采集 ====================
     if not args.skip_amap:
-        pipeline.extend(
-            [
-                ("高德 POI 采集", BASE_DIR / "scripts" / "amap_poi_source.py"),
-                ("CSV 导入数据库", BASE_DIR / "scripts" / "import_csv.py"),
-                ("基础字段标准化", BASE_DIR / "scripts" / "normalize_enterprises.py"),
-            ]
-        )
+        pipeline.append(("高德 POI 采集", BASE_DIR / "scripts" / "amap_poi_source.py"))
 
-    pipeline.extend(
-        [
-            ("企业官网采集", BASE_DIR / "scripts" / "company_website_source.py"),
-            ("百科信息采集", BASE_DIR / "scripts" / "baike_source.py"),
-            ("招聘网站采集", BASE_DIR / "scripts" / "job_board_source.py"),
-            ("标准化采集池构建", BASE_DIR / "scripts" / "build_standardized_crawler_pool.py"),
-            ("多源增强合并", BASE_DIR / "scripts" / "merge_multisource_enrichment.py"),
-            ("采集平台注册表生成", BASE_DIR / "scripts" / "collector_platform.py"),
-        ]
-    )
+    if not args.skip_search:
+        pipeline.append(("搜索引擎采集", BASE_DIR / "scripts" / "search_engine_source.py"))
 
+    if not args.skip_enscan:
+        pipeline.append(("ENScan_GO 企业信息采集", BASE_DIR / "scripts" / "enscan_source.py"))
+
+    # ==================== 第二阶段：数据入库与标准化 ====================
+    pipeline.extend([
+        ("CSV 导入数据库", BASE_DIR / "scripts" / "import_csv.py"),
+        ("基础字段标准化", BASE_DIR / "scripts" / "normalize_enterprises.py"),
+    ])
+
+    # ==================== 第三阶段：富化类采集 ====================
+    if not args.skip_website:
+        pipeline.append(("企业官网采集", BASE_DIR / "scripts" / "company_website_source.py"))
+
+    # ==================== 第四阶段：数据融合 ====================
+    pipeline.extend([
+        ("多源增强合并", BASE_DIR / "scripts" / "merge_multisource_enrichment.py"),
+        ("采集平台注册表生成", BASE_DIR / "scripts" / "collector_platform.py"),
+    ])
+
+    # ==================== 第五阶段：可选 LLM 增强 ====================
     if not args.skip_llm:
         pipeline.append(("LLM 辅助摘要演示", BASE_DIR / "scripts" / "llm_assistant.py"))
 
+    # ==================== 执行所有步骤 ====================
     for step_name, script_path in pipeline:
         run_step(step_name, script_path)
 
-    print("\n全部流程执行完成。")
-    print("如需查看系统效果，请重启后端并刷新前端页面。")
+    print("\n" + "=" * 60)
+    print("✅ 全部流程执行完成！")
+    print("=" * 60)
+    print("\n📌 后续操作：")
+    print("   1. 重启后端服务：uvicorn backend.main:app --reload")
+    print("   2. 刷新前端页面查看效果")
+    print("   3. 如需查看采集结果，请检查 data/ 目录下的 CSV 文件")
 
 
 if __name__ == "__main__":
