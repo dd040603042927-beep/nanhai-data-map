@@ -2,10 +2,16 @@ import csv
 import re
 from pathlib import Path
 
-from web_crawler_utils import DATA_DIR, STANDARD_HEADERS, normalize_company_name, write_rows
+from web_crawler_utils import (
+    DATA_DIR,
+    SAMPLE_CANDIDATE_PATHS,
+    STANDARD_HEADERS,
+    normalize_company_name,
+    write_rows,
+)
 
 SOURCE_PRIORITY = [
-    DATA_DIR / "sample_20.csv",
+    *SAMPLE_CANDIDATE_PATHS,
     DATA_DIR / "company_website_standardized.csv",
     DATA_DIR / "baike_standardized.csv",
     DATA_DIR / "job_board_standardized.csv",
@@ -24,7 +30,7 @@ def score_row(row: dict) -> tuple[int, int]:
         confidence_score = 0
 
     source_score = 0
-    if "nfnews" in source or "sample_20" in source:
+    if "nfnews" in source or "sample_" in source:
         source_score = 5
     elif "官网" in source or source.startswith("http"):
         source_score = 4

@@ -49,6 +49,32 @@ KEYWORDS = [
     "数字化",
 ]
 
+TOWN_ALIASES = {
+    "桂城街道": "桂城",
+    "桂城": "桂城",
+    "狮山镇": "狮山",
+    "狮山": "狮山",
+    "大沥镇": "大沥",
+    "大沥": "大沥",
+    "里水镇": "里水",
+    "里水": "里水",
+    "丹灶镇": "丹灶",
+    "丹灶": "丹灶",
+    "西樵镇": "西樵",
+    "西樵": "西樵",
+    "九江镇": "九江",
+    "九江": "九江",
+}
+
+CATEGORY_SEARCH_KEYWORDS = {
+    "数据资源": ["数据采集", "数据治理", "数据库", "数据资产", "数据标注"],
+    "数据技术": ["大数据", "软件开发", "人工智能", "数据分析", "工业互联网"],
+    "数据服务": ["数据服务", "智慧城市", "数字政府", "信息服务", "数据运营"],
+    "数据应用": ["智慧城市", "工业互联网", "智能制造", "物联网", "数字化"],
+    "数据安全": ["数据安全", "网络安全", "信息安全", "隐私保护", "安全服务"],
+    "数据基础设施": ["数据中心", "云平台", "云计算", "通信", "算力"],
+}
+
 URL = "https://restapi.amap.com/v3/place/text"
 
 
@@ -57,30 +83,46 @@ def parse_instruction_keywords() -> list[str]:
     if not instruction:
         return KEYWORDS
 
+    town = ""
+    for raw_name, short_name in sorted(TOWN_ALIASES.items(), key=lambda item: len(item[0]), reverse=True):
+        if raw_name in instruction:
+            town = short_name
+            break
+
     candidates = []
+    for category, keywords in CATEGORY_SEARCH_KEYWORDS.items():
+        if category in instruction:
+            candidates.extend(keywords)
+
     for keyword in KEYWORDS:
         if keyword in instruction:
             candidates.append(keyword)
 
-    if "数据服务" in instruction:
-        candidates.append("数据服务")
-    if "数据安全" in instruction:
-        candidates.append("数据安全")
-    if "数据技术" in instruction:
-        candidates.extend(["大数据", "软件开发"])
-    if "数据基础设施" in instruction:
-        candidates.extend(["数据中心", "云平台"])
+    keyword_text = instruction
+    for raw_name in sorted(list(TOWN_ALIASES) + list(CATEGORY_SEARCH_KEYWORDS), key=len, reverse=True):
+        keyword_text = keyword_text.replace(raw_name, " ")
+    for token in ["请帮我", "帮我找", "帮我", "帮忙", "查找", "查询", "搜索", "采集", "找", "搜", "查", "一下", "企业", "公司", "单位", "名单", "类型", "类别", "的"]:
+        keyword_text = keyword_text.replace(token, " ")
+    keyword_text = " ".join(keyword_text.split())
+    if keyword_text:
+        candidates.insert(0, keyword_text)
 
-    if candidates:
-        seen = set()
-        ordered = []
-        for item in candidates:
-            if item not in seen:
-                seen.add(item)
-                ordered.append(item)
-        return ordered
+    if not candidates:
+        candidates = KEYWORDS
 
-    return [instruction]
+    seen = set()
+    ordered = []
+    for item in candidates:
+        value = item.strip()
+        if value and value not in seen:
+            seen.add(value)
+            ordered.append(value)
+
+    if town:
+        town_scoped = [f"{town} {keyword}" for keyword in ordered]
+        ordered = town_scoped + ordered
+
+    return ordered[:12]
 
 
 def fetch_poi_by_keyword(keyword: str, max_pages: int = 3, offset: int = 20):
@@ -145,6 +187,7 @@ def build_rows():
     seen = set()
     active_keywords = parse_instruction_keywords()
     sample_reference = load_sample_reference_rows()
+    max_rows = int(os.getenv("PLATFORM_LIMIT", "50") or "50")
 
     for keyword in active_keywords:
         pois = fetch_poi_by_keyword(keyword)
@@ -176,6 +219,8 @@ def build_rows():
                 sample_reference=sample_reference,
             )
             rows.append(row)
+            if len(rows) >= max_rows:
+                return rows
 
     return rows
 

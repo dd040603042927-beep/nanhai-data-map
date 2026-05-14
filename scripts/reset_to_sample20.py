@@ -7,7 +7,10 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
-SAMPLE_PATH = DATA_DIR / "sample_20.csv"
+SAMPLE_CANDIDATE_PATHS = [
+    DATA_DIR / "sample_100.csv",
+    DATA_DIR / "sample_20.csv",
+]
 IMPORT_TARGET_PATH = DATA_DIR / "amap_enterprises.csv"
 DATABASE_PATH = PROJECT_ROOT / "enterprise.db"
 
@@ -64,10 +67,12 @@ def clear_database_rows():
 
 
 def restore_sample_file():
-    if not SAMPLE_PATH.exists():
-        raise FileNotFoundError(f"找不到标准样本文件：{SAMPLE_PATH}")
+    sample_path = next((path for path in SAMPLE_CANDIDATE_PATHS if path.exists()), None)
+    if not sample_path:
+        raise FileNotFoundError("找不到标准样本文件：sample_100.csv / sample_20.csv")
 
-    shutil.copyfile(SAMPLE_PATH, IMPORT_TARGET_PATH)
+    shutil.copyfile(sample_path, IMPORT_TARGET_PATH)
+    return sample_path
 
 
 def run_step(script_name: str):
@@ -82,7 +87,7 @@ def run_step(script_name: str):
 
 
 def main():
-    print("开始重置数据，只保留 sample_20 标准数据。")
+    print("开始重置数据，只保留当前标准样本数据。")
     removed = remove_generated_files()
 
     if removed:
@@ -92,13 +97,13 @@ def main():
     else:
         print("没有发现需要删除的旧数据文件。")
 
-    restore_sample_file()
-    print(f"已用 {SAMPLE_PATH.name} 覆盖生成新的 {IMPORT_TARGET_PATH.name}")
+    sample_path = restore_sample_file()
+    print(f"已用 {sample_path.name} 覆盖生成新的 {IMPORT_TARGET_PATH.name}")
 
     run_step("import_csv.py")
     run_step("normalize_enterprises.py")
 
-    print("重置完成。当前数据库只保留 sample_20 导入的数据。")
+    print(f"重置完成。当前数据库只保留 {sample_path.name} 导入的数据。")
 
 
 if __name__ == "__main__":
