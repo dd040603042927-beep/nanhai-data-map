@@ -11,7 +11,10 @@ from bs4 import BeautifulSoup
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DEFAULT_INPUT_PATH = DATA_DIR / "amap_enterprises.csv"
-SAMPLE_STANDARD_PATH = DATA_DIR / "sample_20.csv"
+SAMPLE_CANDIDATE_PATHS = [
+    DATA_DIR / "sample_100.csv",
+    DATA_DIR / "sample_20.csv",
+]
 STANDARD_HEADERS = [
     "企业名称",
     "所在镇街",
@@ -105,6 +108,21 @@ SOURCE_CONFIDENCE = {
 }
 
 
+def resolve_sample_standard_path() -> Path | None:
+    configured = os.getenv("SAMPLE_STANDARD_PATH", "").strip()
+    if configured:
+        configured_path = Path(configured)
+        if not configured_path.is_absolute():
+            configured_path = BASE_DIR / configured_path
+        if configured_path.exists():
+            return configured_path
+
+    for path in SAMPLE_CANDIDATE_PATHS:
+        if path.exists():
+            return path
+    return None
+
+
 def build_soup(html: str) -> BeautifulSoup:
     try:
         return BeautifulSoup(html, "lxml")
@@ -159,11 +177,12 @@ def clean_text(text: str, max_length: int = 120) -> str:
 
 
 def load_sample_reference_rows() -> dict[str, dict]:
-    if not SAMPLE_STANDARD_PATH.exists():
+    sample_path = resolve_sample_standard_path()
+    if not sample_path:
         return {}
 
     result = {}
-    with SAMPLE_STANDARD_PATH.open("r", encoding="utf-8-sig", newline="") as file:
+    with sample_path.open("r", encoding="utf-8-sig", newline="") as file:
         reader = csv.DictReader(file)
         for row in reader:
             name = (row.get("企业名称") or "").strip()

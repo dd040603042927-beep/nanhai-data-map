@@ -2,8 +2,16 @@
   min-height: 100vh;
   padding: 32px 20px 48px;
   background:
-    radial-gradient(circle at top left, rgba(255, 211, 138, 0.5), transparent 28%),
-    radial-gradient(circle at top right, rgba(118, 167, 255, 0.25), transparent 30%),
+    radial-gradient(
+      circle at top left,
+      rgba(255, 211, 138, 0.5),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(118, 167, 255, 0.25),
+      transparent 30%
+    ),
     linear-gradient(180deg, #f6f1e8 0%, #eef3f9 100%);
 }
 
@@ -31,6 +39,7 @@
 .query-card,
 .filter-card,
 .table-card,
+.graph-card,
 .stats-card {
   border: 0;
   border-radius: 24px;
@@ -85,9 +94,34 @@
 
 .query-card,
 .filter-card,
+.graph-card,
 .table-card {
   margin-bottom: 20px;
   background: rgba(255, 255, 255, 0.92);
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.section-heading h4.ant-typography {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: #17304f;
+}
+
+.section-heading .ant-typography {
+  margin-bottom: 0;
+  color: #43566f;
+}
+
+.knowledge-graph {
+  width: 100%;
+  min-height: 460px;
 }
 
 .panel-card {
@@ -232,7 +266,52 @@
     grid-template-columns: 1fr;
   }
 
+  .section-heading {
+    display: block;
+  }
+
+  .knowledge-graph {
+    height: 360px;
+  }
+
   .platform-summary-grid {
     grid-template-columns: 1fr;
+  }
+}
+.collect-card {
+  border: 0;
+  border-radius: 24px;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.collect-card .ant-card-body {
+  padding: 20px 24px;
+}
+
+.candidate-review-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.candidate-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.candidate-review-meta {
+  margin-top: 4px;
+  color: #5b6b82;
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .candidate-review-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
